@@ -284,4 +284,12 @@ onAuthStateChanged(auth,async u=>{
   if(!u){me=null;return login()}
   let s;
   try{s=await getDoc(doc(db,'users',u.uid))}catch{return login('Pas de connexion · Tsy misy internet')}
-  if(!s.exists()){await signOut(auth);ret
+  if(!s.exists()){await signOut(auth);return login('Compte non configuré · Tsy mbola vonona ny kaontinao')}
+  me={uid:u.uid,...s.data()};
+  shell();
+});
+
+if('serviceWorker' in navigator)addEventListener('load',()=>navigator.serviceWorker.register('sw.js'));
+</script>
+</body>
+</html>
