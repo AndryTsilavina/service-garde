@@ -1,4 +1,4 @@
-<!doctype html>
+  <!doctype html>
 <html lang="fr">
 <head>
 <meta charset="utf-8">
@@ -30,6 +30,8 @@ button.o{background:#fff;color:var(--b);border:1px solid var(--b)}
 label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--mu)}
 input,select,textarea{min-height:44px;border:1px solid #BFD0DC;border-radius:10px;padding:0 10px;font:15px system-ui,sans-serif;color:var(--ink);background:#fff}
 textarea{min-height:96px;padding:10px;resize:vertical}
+.p.m{background:#FFF3D6;color:#8A5A00}
+.p.w{background:#FDE8E8;color:#9B1C1C}
 .fiche{white-space:pre-wrap;background:var(--bg);border-radius:8px;padding:8px;font-size:13px}
 nav{position:sticky;bottom:0;display:flex;background:#fff;border-top:1px solid var(--ln);padding-bottom:env(safe-area-inset-bottom)}
 nav a{flex:1;text-align:center;padding:10px 0;font-size:11px;color:var(--mu);text-decoration:none}
@@ -163,7 +165,58 @@ function addPat(){
   };
 }
 
-const V={home,staff,pat:pats};
+
+const E={bon:['Bon','Tsara',''],moyen:['Moyen','Antonony','m'],inquietant:['Inquiétant','Miahiahy','w']};
+const dfr=d=>d?d.split('-').reverse().join('/'):'';
+
+async function raps(){
+  M().innerHTML=`<h2>${L('Rapports','Tatitra')}</h2><div id="lr" style="display:flex;flex-direction:column;gap:10px"></div><button id="addr">${L('Nouveau rapport','Tatitra vaovao')}</button>`;
+  $('#addr').onclick=addRap;
+  try{
+    const r=await getDocs(collection(db,'rapports'));
+    const a=r.docs.map(d=>d.data()).sort((x,y)=>(y.date||'').localeCompare(x.date||'')||((y.creeLe?.seconds||0)-(x.creeLe?.seconds||0))).slice(0,50);
+    $('#lr').innerHTML=!a.length?`<p class="t">${L('Aucun rapport pour le moment.','Mbola tsy misy tatitra.')}</p>`:
+      a.map(x=>{const e=E[x.etat]||E.bon;
+      return `<div class="c"><div class="r"><b>${esc(x.patientNom)}</b><span class="p ${e[2]}">${L(e[0],e[1])}</span></div>
+      <div class="t">${esc(dfr(x.date))} · ${L('Garde','Mpiambina')}: ${esc(x.gardeNom)}</div>
+      <div class="t">${L('Médicaments donnés','Fanafody nomena')}: ${x.medicaments==='oui'?'Oui · Eny':'Non · Tsia'}</div>
+      ${x.observations?`<div class="fiche"><b>${L('Observations','Fanamarihana')}</b>${esc(x.observations)}</div>`:''}</div>`}).join('');
+  }catch(x){$('#lr').innerHTML=`<p class="err">${L('Impossible de charger la liste.','Tsy azo nalaina ny lisitra.')} (${esc(x.code||'erreur')})</p>`}
+}
+
+async function addRap(){
+  M().innerHTML=`<p class="t">${L('Chargement…','Mahandrasa…')}</p>`;
+  const back=`<button type="button" class="o" id="bk">${L('Retour','Hiverina')}</button>`;
+  let P=[],G=[];
+  try{
+    const [a,b]=await Promise.all([getDocs(collection(db,'patients')),getDocs(query(collection(db,'users'),where('role','==','garde')))]);
+    P=a.docs.map(d=>({id:d.id,...d.data()}));G=b.docs.map(d=>({id:d.id,...d.data()}));
+  }catch(x){M().innerHTML=`<p class="err">${L('Impossible de charger.','Tsy azo nalaina.')} (${esc(x.code||'erreur')})</p>${back}`;$('#bk').onclick=raps;return}
+  if(!P.length||!G.length){M().innerHTML=`<div class="c">${L('Ajoutez d\u2019abord au moins un patient et un garde.','Ampio aloha marary iray farafahakeliny sy garde iray.')}</div>${back}`;$('#bk').onclick=raps;return}
+  const today=new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,10);
+  const opt=(arr)=>arr.map(x=>`<option value="${esc(x.id)}">${esc(x.nom)}</option>`).join('');
+  M().innerHTML=`<h2>${L('Nouveau rapport','Tatitra vaovao')}</h2><form id="f" class="c">
+  <label>${L('Date','Daty')}<input name="date" type="date" value="${today}" required></label>
+  <label>${L('Patient','Marary')}<select name="pat">${opt(P)}</select></label>
+  <label>${L('Garde','Mpiambina')}<select name="gar">${opt(G)}</select></label>
+  <label>${L('État du patient','Toetran\u2019ny marary')}<select name="etat"><option value="bon">Bon · Tsara</option><option value="moyen">Moyen · Antonony</option><option value="inquietant">Inquiétant · Miahiahy</option></select></label>
+  <label>${L('Médicaments donnés ?','Efa nomena fanafody ve?')}<select name="med"><option value="oui">Oui · Eny</option><option value="non">Non · Tsia</option></select></label>
+  <label>${L('Observations','Fanamarihana')}<textarea name="obs" placeholder="Repas, sommeil, douleurs… · Sakafo, torimaso, fanaintainana…"></textarea></label>
+  <p class="err" id="e"></p><button>${L('Enregistrer','Tehirizo')}</button>
+  <button type="button" class="o" id="bk">${L('Annuler','Foana')}</button></form>`;
+  $('#bk').onclick=raps;
+  $('#f').onsubmit=async e=>{
+    e.preventDefault();
+    const f=Object.fromEntries(new FormData(e.target)),er=$('#e');er.textContent='';
+    const p=P.find(x=>x.id===f.pat),g=G.find(x=>x.id===f.gar);
+    try{
+      await setDoc(doc(collection(db,'rapports')),{date:f.date,patientId:f.pat,patientNom:p?p.nom:'',gardeId:f.gar,gardeNom:g?g.nom:'',etat:f.etat,medicaments:f.med,observations:f.obs.trim(),creePar:me.uid,creeLe:serverTimestamp()});
+      raps();
+    }catch(x){er.textContent='Échec · Tsy nahomby ('+(x.code||'erreur')+')'}
+  };
+}
+
+const V={home,staff,pat:pats,rap:raps};
 function nav(){
   const k=location.hash.slice(1)||'home';
   document.querySelectorAll('nav a').forEach(a=>a.classList.toggle('on',a.dataset.k===k));
