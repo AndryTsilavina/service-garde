@@ -1,4 +1,4 @@
-  <!doctype html>
+<!doctype html>
 <html lang="fr">
 <head>
 <meta charset="utf-8">
@@ -32,6 +32,7 @@ input,select,textarea{min-height:44px;border:1px solid #BFD0DC;border-radius:10p
 textarea{min-height:96px;padding:10px;resize:vertical}
 .p.m{background:#FFF3D6;color:#8A5A00}
 .p.w{background:#FDE8E8;color:#9B1C1C}
+.p.ok{background:#DFF5E6;color:#1B6B3A}
 .fiche{white-space:pre-wrap;background:var(--bg);border-radius:8px;padding:8px;font-size:13px}
 nav{position:sticky;bottom:0;display:flex;background:#fff;border-top:1px solid var(--ln);padding-bottom:env(safe-area-inset-bottom)}
 nav a{flex:1;text-align:center;padding:10px 0;font-size:11px;color:var(--mu);text-decoration:none}
@@ -216,7 +217,59 @@ async function addRap(){
   };
 }
 
-const V={home,staff,pat:pats,rap:raps};
+
+const fmt=n=>Number(n||0).toLocaleString('fr-FR')+' Ar';
+const tdy=()=>new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,10);
+
+async function pays(){
+  M().innerHTML=`<h2>${L('Paiements','Fandoavana')}</h2><div id="tot"></div><div id="lf" style="display:flex;flex-direction:column;gap:10px"></div><button id="addf">${L('Nouvelle facture','Faktiora vaovao')}</button>`;
+  $('#addf').onclick=addFac;
+  try{
+    const r=await getDocs(collection(db,'factures'));
+    const a=r.docs.map(d=>({id:d.id,...d.data()})).sort((x,y)=>(x.statut==='impaye'?0:1)-(y.statut==='impaye'?0:1)||(y.date||'').localeCompare(x.date||'')).slice(0,100);
+    const tot=a.filter(x=>x.statut==='impaye').reduce((s,x)=>s+Number(x.montant||0),0);
+    $('#tot').innerHTML=`<div class="c"><div class="t">${L('Total à encaisser','Vola tsy mbola voaloa')}</div><div class="v">${fmt(tot)}</div></div>`;
+    $('#lf').innerHTML=!a.length?`<p class="t">${L('Aucune facture pour le moment.','Mbola tsy misy faktiora.')}</p>`:
+      a.map(x=>{const ok=x.statut==='paye';
+      return `<div class="c"><div class="r"><b>${esc(x.patientNom)}</b><span class="p ${ok?'ok':'w'}">${ok?L('Payé','Voaloa'):L('Impayé','Tsy voaloa')}</span></div>
+      <div class="v" style="font-size:20px">${fmt(x.montant)}</div>
+      <div class="t">${esc(dfr(x.date))}${x.motif?' · '+esc(x.motif):''}${ok&&x.datePaiement?' · '+esc(dfr(x.datePaiement)):''}</div>
+      ${ok?'':`<button class="o" data-id="${esc(x.id)}">${L('Marquer comme payé','Hanamarika ho voaloa')}</button>`}</div>`}).join('');
+    document.querySelectorAll('#lf button[data-id]').forEach(b=>b.onclick=async()=>{
+      b.disabled=true;
+      try{await setDoc(doc(db,'factures',b.dataset.id),{statut:'paye',datePaiement:tdy()},{merge:true});pays()}
+      catch(x){b.disabled=false;alert('Échec · Tsy nahomby ('+(x.code||'erreur')+')')}
+    });
+  }catch(x){$('#lf').innerHTML=`<p class="err">${L('Impossible de charger la liste.','Tsy azo nalaina ny lisitra.')} (${esc(x.code||'erreur')})</p>`}
+}
+
+async function addFac(){
+  M().innerHTML=`<p class="t">${L('Chargement…','Mahandrasa…')}</p>`;
+  const back=`<button type="button" class="o" id="bk">${L('Retour','Hiverina')}</button>`;
+  let P=[];
+  try{P=(await getDocs(collection(db,'patients'))).docs.map(d=>({id:d.id,...d.data()}))}
+  catch(x){M().innerHTML=`<p class="err">${L('Impossible de charger.','Tsy azo nalaina.')} (${esc(x.code||'erreur')})</p>${back}`;$('#bk').onclick=pays;return}
+  if(!P.length){M().innerHTML=`<div class="c">${L('Ajoutez d\u2019abord au moins un patient.','Ampio aloha marary iray farafahakeliny.')}</div>${back}`;$('#bk').onclick=pays;return}
+  M().innerHTML=`<h2>${L('Nouvelle facture','Faktiora vaovao')}</h2><form id="f" class="c">
+  <label>${L('Date','Daty')}<input name="date" type="date" value="${tdy()}" required></label>
+  <label>${L('Patient','Marary')}<select name="pat">${P.map(x=>`<option value="${esc(x.id)}">${esc(x.nom)}</option>`).join('')}</select></label>
+  <label>${L('Montant (Ariary)','Vola (Ariary)')}<input name="montant" type="number" inputmode="numeric" min="0" step="any" required></label>
+  <label>${L('Motif ou période','Antony na vanim-potoana')}<input name="motif" placeholder="Ex. : 1 semaine de garde · Ohatra: garde 1 herinandro"></label>
+  <p class="err" id="e"></p><button>${L('Enregistrer','Tehirizo')}</button>
+  <button type="button" class="o" id="bk">${L('Annuler','Foana')}</button></form>`;
+  $('#bk').onclick=pays;
+  $('#f').onsubmit=async e=>{
+    e.preventDefault();
+    const f=Object.fromEntries(new FormData(e.target)),er=$('#e');er.textContent='';
+    const p=P.find(x=>x.id===f.pat);
+    try{
+      await setDoc(doc(collection(db,'factures')),{patientId:f.pat,patientNom:p?p.nom:'',montant:Number(f.montant),motif:f.motif.trim(),date:f.date,statut:'impaye',creePar:me.uid,creeLe:serverTimestamp()});
+      pays();
+    }catch(x){er.textContent='Échec · Tsy nahomby ('+(x.code||'erreur')+')'}
+  };
+}
+
+const V={home,staff,pat:pats,rap:raps,pay:pays};
 function nav(){
   const k=location.hash.slice(1)||'home';
   document.querySelectorAll('nav a').forEach(a=>a.classList.toggle('on',a.dataset.k===k));
@@ -231,12 +284,4 @@ onAuthStateChanged(auth,async u=>{
   if(!u){me=null;return login()}
   let s;
   try{s=await getDoc(doc(db,'users',u.uid))}catch{return login('Pas de connexion · Tsy misy internet')}
-  if(!s.exists()){await signOut(auth);return login('Compte non configuré · Tsy mbola vonona ny kaontinao')}
-  me={uid:u.uid,...s.data()};
-  shell();
-});
-
-if('serviceWorker' in navigator)addEventListener('load',()=>navigator.serviceWorker.register('sw.js'));
-</script>
-</body>
-</html>
+  if(!s.exists()){await signOut(auth);ret
