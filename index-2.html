@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0B7BBF">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Service Garde</title>
+<style>
+:root{--b:#0B7BBF;--bl:#DCEFFB;--bg:#F5F9FC;--ink:#12293A;--mu:#4A6275;--ln:#D9E4EC}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.4 system-ui,sans-serif}
+#app{max-width:480px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column}
+small{display:block;font-size:11px;font-weight:400}
+header{background:var(--b);color:#fff;display:flex;align-items:center;gap:10px;padding:calc(10px + env(safe-area-inset-top)) 14px 10px;position:sticky;top:0;z-index:2}
+header img{height:34px;background:#fff;border-radius:6px;padding:2px 4px}
+header b{flex:1;font-size:16px}
+header button{background:#fff;color:var(--b);min-height:40px}
+main{flex:1;padding:14px;display:flex;flex-direction:column;gap:10px}
+h2{margin:0;font-size:18px}
+.c{background:#fff;border:1px solid var(--ln);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:6px}
+.r{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.g{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.t{font-size:12px;color:var(--mu)}
+.v{font-size:26px;font-weight:700}
+.p{font-size:12px;padding:2px 8px;border-radius:99px;background:var(--bl);color:#0B5A8E}
+button,.btn{min-height:44px;border:0;border-radius:10px;background:var(--b);color:#fff;font:600 14px system-ui,sans-serif;padding:0 14px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-decoration:none;cursor:pointer}
+button.o{background:#fff;color:var(--b);border:1px solid var(--b)}
+label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--mu)}
+input,select,textarea{min-height:44px;border:1px solid #BFD0DC;border-radius:10px;padding:0 10px;font:15px system-ui,sans-serif;color:var(--ink);background:#fff}
+textarea{min-height:96px;padding:10px;resize:vertical}
+.p.m{background:#FFF3D6;color:#8A5A00}
+.p.w{background:#FDE8E8;color:#9B1C1C}
+.fiche{white-space:pre-wrap;background:var(--bg);border-radius:8px;padding:8px;font-size:13px}
+nav{position:sticky;bottom:0;display:flex;background:#fff;border-top:1px solid var(--ln);padding-bottom:env(safe-area-inset-bottom)}
+nav a{flex:1;text-align:center;padding:10px 0;font-size:11px;color:var(--mu);text-decoration:none}
+nav a.on{color:var(--b);font-weight:700}
+.login{padding:28px 20px;display:flex;flex-direction:column;gap:14px}
+.login img{width:70%;max-width:260px;align-self:center}
+.login h1{margin:0;font-size:20px}
+.login form,form.c{display:flex;flex-direction:column;gap:12px}
+.err{color:#9B1C1C;min-height:1.2em;margin:0;font-size:13px}
+:focus-visible{outline:3px solid var(--b);outline-offset:2px}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script type="module">
+import {initializeApp,getApp} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
+import {getAuth,signInWithEmailAndPassword,signOut,onAuthStateChanged,createUserWithEmailAndPassword} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
+import {initializeFirestore,persistentLocalCache,persistentMultipleTabManager,doc,getDoc,setDoc,collection,getDocs,query,where,serverTimestamp} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+
+const cfg={apiKey:"AIzaSyAiGuWNa8ZF2agp_nsieyU004_EANLtZHQ",authDomain:"service-garde.firebaseapp.com",projectId:"service-garde",storageBucket:"service-garde.firebasestorage.app",messagingSenderId:"94523945014",appId:"1:94523945014:web:81457dd777820dd087e897"};
+const fb=initializeApp(cfg);
+const auth=getAuth(fb);
+const db=initializeFirestore(fb,{localCache:persistentLocalCache({tabManager:persistentMultipleTabManager()})});
+
+const $=s=>document.querySelector(s), M=()=>$('#m'), app=$('#app');
+const em=n=>n.replace(/\D/g,'')+'@servicegarde.app';
+const L=(f,m)=>`${f}<small>${m}</small>`;
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const T=[['home','Accueil','Fandraisana'],['staff','Personnel','Mpiasa'],['pat','Patients','Marary'],['rap','Rapports','Tatitra'],['pay','Paiements','Fandoavana']];
+let me=null;
+
+function login(msg=''){
+  app.innerHTML=`<div class="login"><img src="logo-app.png" alt="Service Garde"><h1>${L('Connexion','Fidirana')}</h1>
+  <form id="f"><label>${L('Téléphone','Laharana finday')}<input id="t" type="tel" inputmode="numeric" autocomplete="username" required></label>
+  <label>${L('Code PIN','Kaody miafina')}<input id="p" type="password" inputmode="numeric" autocomplete="current-password" minlength="6" required></label>
+  <p class="err" id="e">${msg}</p><button>${L('Se connecter','Hiditra')}</button></form></div>`;
+  $('#f').onsubmit=async e=>{
+    e.preventDefault();$('#e').textContent='';
+    try{await signInWithEmailAndPassword(auth,em($('#t').value),$('#p').value)}
+    catch{$('#e').textContent='Téléphone ou code incorrect · Diso ny laharana na ny kaody'}
+  };
+}
+
+function shell(){
+  app.innerHTML=`<header><img src="logo-app.png" alt=""><b id="ttl"></b><button id="out">${L('Quitter','Hiala')}</button></header><main id="m"></main>
+  <nav>${T.map(([k,f,m])=>`<a href="#${k}" data-k="${k}">${L(f,m)}</a>`).join('')}</nav>`;
+  $('#out').onclick=()=>signOut(auth);
+  nav();
+}
+
+const soon=()=>{M().innerHTML=`<div class="c">${L('Bientôt disponible','Tsy ho ela')}</div>`};
+
+async function home(){
+  M().innerHTML=`<h2>${L('Tableau de bord','Takelaka fandraisana')}</h2><div class="g" id="g"></div>`;
+  const n=async q=>{try{return (await getDocs(q)).size}catch{return '–'}};
+  const [a,b,c]=await Promise.all([
+    n(query(collection(db,'users'),where('role','==','garde'))),
+    n(collection(db,'patients')),
+    n(query(collection(db,'factures'),where('statut','==','impaye')))]);
+  $('#g').innerHTML=[['Gardes','Mpiambina',a],['Patients','Marary',b],['Factures impayées','Faktiora tsy voaloa',c]]
+    .map(([f,g,v])=>`<div class="c"><div class="t">${L(f,g)}</div><div class="v">${v}</div></div>`).join('');
+}
+
+async function staff(){
+  M().innerHTML=`<h2>${L('Personnel','Mpiasa')}</h2><div id="ls" style="display:flex;flex-direction:column;gap:10px"></div><button id="add">${L('Ajouter un garde','Hanampy garde')}</button>`;
+  $('#add').onclick=addForm;
+  try{
+    const r=await getDocs(query(collection(db,'users'),where('role','==','garde')));
+    $('#ls').innerHTML=r.empty?`<p class="t">${L('Aucun garde pour le moment.','Mbola tsy misy garde.')}</p>`:
+      r.docs.map(d=>{const x=d.data();return `<div class="c"><div class="r"><b>${esc(x.nom)}</b><span class="p">${esc(x.disponibilite||'')}</span></div>
+      <div class="t">${esc(x.telephone)} · ${esc(x.lieu||'')}</div>
+      <a class="btn" href="tel:${esc(x.telephone)}">${L('Appeler','Antso')}</a></div>`}).join('');
+  }catch{$('#ls').innerHTML=`<p class="err">${L('Connexion requise pour charger la liste.','Mila internet hamoahana ny lisitra.')}</p>`}
+}
+
+function addForm(){
+  M().innerHTML=`<h2>${L('Nouveau garde','Garde vaovao')}</h2><form id="f" class="c">
+  <label>${L('Nom complet','Anarana feno')}<input name="nom" required></label>
+  <label>${L('Téléphone','Laharana finday')}<input name="tel" type="tel" inputmode="numeric" required></label>
+  <label>${L('Lieu de résidence','Toerana honenana')}<input name="lieu"></label>
+  <label>${L('Disponibilité','Fahafahana')}<select name="dispo"><option>Disponible</option><option>Indisponible</option></select></label>
+  <label>${L('Code PIN (6 chiffres)','Kaody PIN (isa 6)')}<input name="pin" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" required></label>
+  <p class="err" id="e"></p><button>${L('Créer le compte','Hamorona kaonty')}</button>
+  <button type="button" class="o" id="bk">${L('Annuler','Foana')}</button></form>`;
+  $('#bk').onclick=staff;
+  $('#f').onsubmit=async e=>{
+    e.preventDefault();
+    const f=Object.fromEntries(new FormData(e.target)),er=$('#e');er.textContent='';
+    try{
+      let sec;try{sec=getApp('sec')}catch{sec=initializeApp(cfg,'sec')}
+      const a2=getAuth(sec);
+      const c=await createUserWithEmailAndPassword(a2,em(f.tel),f.pin);
+      await signOut(a2);
+      await setDoc(doc(db,'users',c.user.uid),{role:'garde',nom:f.nom.trim(),telephone:f.tel.replace(/\D/g,''),lieu:f.lieu.trim(),disponibilite:f.dispo,creeLe:serverTimestamp()});
+      staff();
+    }catch(x){er.textContent=x.code==='auth/email-already-in-use'?'Ce numéro existe déjà · Efa misy io laharana io':'Échec · Tsy nahomby ('+(x.code||'erreur')+')'}
+  };
+}
+
+async function pats(){
+  M().innerHTML=`<h2>${L('Patients','Marary')}</h2><div id="lp" style="display:flex;flex-direction:column;gap:10px"></div><button id="addp">${L('Ajouter un patient','Hanampy marary')}</button>`;
+  $('#addp').onclick=addPat;
+  try{
+    const r=await getDocs(collection(db,'patients'));
+    $('#lp').innerHTML=r.empty?`<p class="t">${L('Aucun patient pour le moment.','Mbola tsy misy marary.')}</p>`:
+      r.docs.map(d=>{const x=d.data(),h=x.localisation==='hopital';
+      return `<div class="c"><div class="r"><b>${esc(x.nom)}</b><span class="p">${h?'Hôpital':'Domicile'}</span></div>
+      <div class="t">${esc(x.telephone)} · ${esc(x.lieu||'')}</div>
+      ${x.traitement?`<div class="fiche"><b>${L('Fiche de traitement','Fiches fitsaboana')}</b>${esc(x.traitement)}</div>`:''}
+      <a class="btn" href="tel:${esc(x.telephone)}">${L('Appeler la famille','Antsoy ny fianakaviana')}</a></div>`}).join('');
+  }catch(x){$('#lp').innerHTML=`<p class="err">${L('Impossible de charger la liste.','Tsy azo nalaina ny lisitra.')} (${esc(x.code||'erreur')})</p>`}
+}
+
+function addPat(){
+  M().innerHTML=`<h2>${L('Nouveau patient','Marary vaovao')}</h2><form id="f" class="c">
+  <label>${L('Nom du patient','Anaran\u2019ny marary')}<input name="nom" required></label>
+  <label>${L('Téléphone de la famille','Laharana finday ny fianakaviana')}<input name="tel" type="tel" inputmode="numeric" required></label>
+  <label>${L('Où se trouve le patient ?','Aiza ny marary?')}<select name="loc"><option value="domicile">Domicile · Ao an-trano</option><option value="hopital">Hôpital · Hopitaly</option></select></label>
+  <label>${L('Adresse ou nom de l\u2019hôpital','Adiresy na anaran\u2019ny hopitaly')}<input name="lieu"></label>
+  <label>${L('Fiche de traitement','Fiches fitsaboana')}<textarea name="trt" placeholder="Médicaments, horaires, consignes · Fanafody, ora, toromarika"></textarea></label>
+  <p class="err" id="e"></p><button>${L('Enregistrer','Tehirizo')}</button>
+  <button type="button" class="o" id="bk">${L('Annuler','Foana')}</button></form>`;
+  $('#bk').onclick=pats;
+  $('#f').onsubmit=async e=>{
+    e.preventDefault();
+    const f=Object.fromEntries(new FormData(e.target)),er=$('#e');er.textContent='';
+    try{
+      await setDoc(doc(collection(db,'patients')),{nom:f.nom.trim(),telephone:f.tel.replace(/\D/g,''),localisation:f.loc,lieu:f.lieu.trim(),traitement:f.trt.trim(),creePar:me.uid,creeLe:serverTimestamp()});
+      pats();
+    }catch(x){er.textContent='Échec · Tsy nahomby ('+(x.code||'erreur')+')'}
+  };
+}
+
+
+const E={bon:['Bon','Tsara',''],moyen:['Moyen','Antonony','m'],inquietant:['Inquiétant','Miahiahy','w']};
+const dfr=d=>d?d.split('-').reverse().join('/'):'';
+
+async function raps(){
+  M().innerHTML=`<h2>${L('Rapports','Tatitra')}</h2><div id="lr" style="display:flex;flex-direction:column;gap:10px"></div><button id="addr">${L('Nouveau rapport','Tatitra vaovao')}</button>`;
+  $('#addr').onclick=addRap;
+  try{
+    const r=await getDocs(collection(db,'rapports'));
+    const a=r.docs.map(d=>d.data()).sort((x,y)=>(y.date||'').localeCompare(x.date||'')||((y.creeLe?.seconds||0)-(x.creeLe?.seconds||0))).slice(0,50);
+    $('#lr').innerHTML=!a.length?`<p class="t">${L('Aucun rapport pour le moment.','Mbola tsy misy tatitra.')}</p>`:
+      a.map(x=>{const e=E[x.etat]||E.bon;
+      return `<div class="c"><div class="r"><b>${esc(x.patientNom)}</b><span class="p ${e[2]}">${L(e[0],e[1])}</span></div>
+      <div class="t">${esc(dfr(x.date))} · ${L('Garde','Mpiambina')}: ${esc(x.gardeNom)}</div>
+      <div class="t">${L('Médicaments donnés','Fanafody nomena')}: ${x.medicaments==='oui'?'Oui · Eny':'Non · Tsia'}</div>
+      ${x.observations?`<div class="fiche"><b>${L('Observations','Fanamarihana')}</b>${esc(x.observations)}</div>`:''}</div>`}).join('');
+  }catch(x){$('#lr').innerHTML=`<p class="err">${L('Impossible de charger la liste.','Tsy azo nalaina ny lisitra.')} (${esc(x.code||'erreur')})</p>`}
+}
+
+async function addRap(){
+  M().innerHTML=`<p class="t">${L('Chargement…','Mahandrasa…')}</p>`;
+  const back=`<button type="button" class="o" id="bk">${L('Retour','Hiverina')}</button>`;
+  let P=[],G=[];
+  try{
+    const [a,b]=await Promise.all([getDocs(collection(db,'patients')),getDocs(query(collection(db,'users'),where('role','==','garde')))]);
+    P=a.docs.map(d=>({id:d.id,...d.data()}));G=b.docs.map(d=>({id:d.id,...d.data()}));
+  }catch(x){M().innerHTML=`<p class="err">${L('Impossible de charger.','Tsy azo nalaina.')} (${esc(x.code||'erreur')})</p>${back}`;$('#bk').onclick=raps;return}
+  if(!P.length||!G.length){M().innerHTML=`<div class="c">${L('Ajoutez d\u2019abord au moins un patient et un garde.','Ampio aloha marary iray farafahakeliny sy garde iray.')}</div>${back}`;$('#bk').onclick=raps;return}
+  const today=new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,10);
+  const opt=(arr)=>arr.map(x=>`<option value="${esc(x.id)}">${esc(x.nom)}</option>`).join('');
+  M().innerHTML=`<h2>${L('Nouveau rapport','Tatitra vaovao')}</h2><form id="f" class="c">
+  <label>${L('Date','Daty')}<input name="date" type="date" value="${today}" required></label>
+  <label>${L('Patient','Marary')}<select name="pat">${opt(P)}</select></label>
+  <label>${L('Garde','Mpiambina')}<select name="gar">${opt(G)}</select></label>
+  <label>${L('État du patient','Toetran\u2019ny marary')}<select name="etat"><option value="bon">Bon · Tsara</option><option value="moyen">Moyen · Antonony</option><option value="inquietant">Inquiétant · Miahiahy</option></select></label>
+  <label>${L('Médicaments donnés ?','Efa nomena fanafody ve?')}<select name="med"><option value="oui">Oui · Eny</option><option value="non">Non · Tsia</option></select></label>
+  <label>${L('Observations','Fanamarihana')}<textarea name="obs" placeholder="Repas, sommeil, douleurs… · Sakafo, torimaso, fanaintainana…"></textarea></label>
+  <p class="err" id="e"></p><button>${L('Enregistrer','Tehirizo')}</button>
+  <button type="button" class="o" id="bk">${L('Annuler','Foana')}</button></form>`;
+  $('#bk').onclick=raps;
+  $('#f').onsubmit=async e=>{
+    e.preventDefault();
+    const f=Object.fromEntries(new FormData(e.target)),er=$('#e');er.textContent='';
+    const p=P.find(x=>x.id===f.pat),g=G.find(x=>x.id===f.gar);
+    try{
+      await setDoc(doc(collection(db,'rapports')),{date:f.date,patientId:f.pat,patientNom:p?p.nom:'',gardeId:f.gar,gardeNom:g?g.nom:'',etat:f.etat,medicaments:f.med,observations:f.obs.trim(),creePar:me.uid,creeLe:serverTimestamp()});
+      raps();
+    }catch(x){er.textContent='Échec · Tsy nahomby ('+(x.code||'erreur')+')'}
+  };
+}
+
+const V={home,staff,pat:pats,rap:raps};
+function nav(){
+  const k=location.hash.slice(1)||'home';
+  document.querySelectorAll('nav a').forEach(a=>a.classList.toggle('on',a.dataset.k===k));
+  const t=T.find(x=>x[0]===k)||T[0];
+  $('#ttl').innerHTML=L(t[1],t[2]);
+  if(me.role!=='admin'){M().innerHTML=`<div class="c">${L('Votre espace arrive bientôt.','Ho avy tsy ho ela ny toeranao.')}</div>`;return}
+  (V[k]||soon)();
+}
+addEventListener('hashchange',()=>{if(me&&M())nav()});
+
+onAuthStateChanged(auth,async u=>{
+  if(!u){me=null;return login()}
+  let s;
+  try{s=await getDoc(doc(db,'users',u.uid))}catch{return login('Pas de connexion · Tsy misy internet')}
+  if(!s.exists()){await signOut(auth);return login('Compte non configuré · Tsy mbola vonona ny kaontinao')}
+  me={uid:u.uid,...s.data()};
+  shell();
+});
+
+if('serviceWorker' in navigator)addEventListener('load',()=>navigator.serviceWorker.register('sw.js'));
+</script>
+</body>
+</html>
